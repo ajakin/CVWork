@@ -6,4 +6,5 @@ KvasirDataset.py ：继承Dataset类编写了Kvasir数据集的Dataset类，定�
 
 segnet.py：定义了基于Mobile结构的Segnet，暂时是基础模型，后面要模块；
 
-数据集：KvasirSeg数据集，包括images、masks两个子文件夹和一个json文件
+数据集：KvasirSeg数据集，包括images、masks两个子文件夹和一个json文件（https://datasets.simula.no/downloads/kvasir-seg.zip）
+
