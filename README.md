@@ -16,4 +16,4 @@ SuperPixPool.py:超像素池函数，传入特征图和超像素图进行超像�
 
 **4.30--SLIC示例图**
 
-![SLIC示例](./img.png)
+![SLIC示例](.\img.png)
