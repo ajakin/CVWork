@@ -10,6 +10,7 @@ segnet.py：定义了基于Mobile结构的Segnet，暂时是基础模型，后�
 
 新增:
 SLIC.py:对skimage.segmentation中的slic算法进行封装，使其维度能跟随batchsize变化，得到超像素图superpixel_map用于超像素池化
+
 SuperPixPool.py:超像素池函数，传入特征图和超像素图进行超像素池化
 
 
