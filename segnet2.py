@@ -2,6 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collections import OrderedDict
+import torch.optim as optim
+from torchvision import transforms
+from PIL import Image
+from SuperPixPool2 import superpixel_pooling,superpixel_unpooling
+from skimage.segmentation import slic
+from skimage.util import img_as_float
+import numpy as np
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class SegNet(nn.Module):
     def __init__(self,input_nbr,label_nbr):
@@ -70,63 +80,65 @@ class SegNet(nn.Module):
         self.bn12d = nn.BatchNorm2d(64, momentum= batchNorm_momentum)
         self.conv11d = nn.Conv2d(64, label_nbr, kernel_size=3, padding=1)
 
-
     def forward(self, x):
+        print("forward",x.shape,device)
+
+        # get superpixel_map
+        superpixel_map = self.compute_superpixel_map(x)
 
         # Stage 1
         x11 = F.relu(self.bn11(self.conv11(x)))
         x12 = F.relu(self.bn12(self.conv12(x11)))
-        x1p, id1 = F.max_pool2d(x12,kernel_size=2, stride=2,return_indices=True)
+        x1p = superpixel_pooling(x12,superpixel_map)
 
         # Stage 2
         x21 = F.relu(self.bn21(self.conv21(x1p)))
         x22 = F.relu(self.bn22(self.conv22(x21)))
-        x2p, id2 = F.max_pool2d(x22,kernel_size=2, stride=2,return_indices=True)
+        x2p = superpixel_pooling(x22,superpixel_map)
 
         # Stage 3
         x31 = F.relu(self.bn31(self.conv31(x2p)))
         x32 = F.relu(self.bn32(self.conv32(x31)))
         x33 = F.relu(self.bn33(self.conv33(x32)))
-        x3p, id3 = F.max_pool2d(x33,kernel_size=2, stride=2,return_indices=True)
+        x3p = superpixel_pooling(x33,superpixel_map)
 
         # Stage 4
         x41 = F.relu(self.bn41(self.conv41(x3p)))
         x42 = F.relu(self.bn42(self.conv42(x41)))
         x43 = F.relu(self.bn43(self.conv43(x42)))
-        x4p, id4 = F.max_pool2d(x43,kernel_size=2, stride=2,return_indices=True)
+        x4p = superpixel_pooling(x43,superpixel_map)
 
         # Stage 5
         x51 = F.relu(self.bn51(self.conv51(x4p)))
         x52 = F.relu(self.bn52(self.conv52(x51)))
         x53 = F.relu(self.bn53(self.conv53(x52)))
-        x5p, id5 = F.max_pool2d(x53,kernel_size=2, stride=2,return_indices=True)
-
+        x5p = superpixel_pooling(x53,superpixel_map)
 
         # Stage 5d
-        x5d = F.max_unpool2d(x5p, id5, kernel_size=2, stride=2)
+        x5d = superpixel_unpooling(x5p, superpixel_map, x53.shape[2], x53.shape[3])
         x53d = F.relu(self.bn53d(self.conv53d(x5d)))
         x52d = F.relu(self.bn52d(self.conv52d(x53d)))
         x51d = F.relu(self.bn51d(self.conv51d(x52d)))
 
         # Stage 4d
-        x4d = F.max_unpool2d(x51d, id4, kernel_size=2, stride=2)
+        x4d = superpixel_unpooling(x4p, superpixel_map, x43.shape[2], x43.shape[3])
         x43d = F.relu(self.bn43d(self.conv43d(x4d)))
         x42d = F.relu(self.bn42d(self.conv42d(x43d)))
         x41d = F.relu(self.bn41d(self.conv41d(x42d)))
 
         # Stage 3d
-        x3d = F.max_unpool2d(x41d, id3, kernel_size=2, stride=2)
+        x3d = superpixel_unpooling(x3p, superpixel_map, x33.shape[2], x33.shape[3])
         x33d = F.relu(self.bn33d(self.conv33d(x3d)))
         x32d = F.relu(self.bn32d(self.conv32d(x33d)))
         x31d = F.relu(self.bn31d(self.conv31d(x32d)))
 
         # Stage 2d
-        x2d = F.max_unpool2d(x31d, id2, kernel_size=2, stride=2)
+        x2d = superpixel_unpooling(x2p, superpixel_map, x22.shape[2], x22.shape[3])
         x22d = F.relu(self.bn22d(self.conv22d(x2d)))
         x21d = F.relu(self.bn21d(self.conv21d(x22d)))
 
         # Stage 1d
-        x1d = F.max_unpool2d(x21d, id1, kernel_size=2, stride=2)
+        x1d = superpixel_unpooling(x1p, superpixel_map, x12.shape[2], x12.shape[3])
         x12d = F.relu(self.bn12d(self.conv12d(x1d)))
         x11d = self.conv11d(x12d)
 
@@ -137,57 +149,18 @@ class SegNet(nn.Module):
         th = torch.load(model_path).state_dict() # load the weigths
         self.load_state_dict(th)
 
+    def compute_superpixel_map(self,img_tensor, n_segments=100, compactness=10):
+        """
+        img_tensor: [B, 3, H, W] 的 PyTorch 图像张量，值范围 [0, 1] 或 [0, 255]
+        return: [B, H, W] 的超像素标签张量，每个像素的值表示所属的超像素编号
+        """
+        B, C, H, W = img_tensor.shape
+        superpixel_maps = []
 
-import torch
-import torch.optim as optim
-from torchvision import transforms
-from PIL import Image
+        for i in range(B):
+            img = img_tensor[i].cpu().numpy().transpose(1, 2, 0)  # [H, W, 3]
+            img = img_as_float(img)  # 转为 float 类型以便 SLIC 处理
+            segments = slic(img, n_segments=n_segments, compactness=compactness, start_label=0)
+            superpixel_maps.append(torch.from_numpy(segments).long())  # [H, W]
 
-
-def main():
-    # 设置模型参数
-    input_nbr = 3  # 假设输入是RGB图像 (3通道)
-    label_nbr = 1  # 假设输出是单通道的分割掩码
-
-    # 初始化模型
-    model = SegNet(input_nbr, label_nbr)
-
-    # 加载预训练模型（此处用你自己的.pth路径替换）
-    model_path = 'your_model_path.pth'  # 填写模型路径
-    model.load_from_segnet(model_path)
-
-    # 设置模型为评估模式
-    model.eval()
-
-    # 加载输入图片
-    image_path = 'your_image_path.jpg'  # 填写输入图片路径
-    image = Image.open(image_path).convert('RGB')
-
-    # 预处理图片（resize，转为tensor等）
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # 假设模型输入大小是224x224
-        transforms.ToTensor(),
-    ])
-
-    image_tensor = transform(image).unsqueeze(0)  # 添加batch维度 (1, C, H, W)
-
-    # 打印输入尺寸
-    print("Input size:", image_tensor.size())
-
-    # 将输入送入模型
-    with torch.no_grad():  # 禁用梯度计算
-        output = model(image_tensor)
-
-    # 打印输出尺寸
-    print("Output size:", output.size())
-
-
-def test():
-    net = SegNet()
-    image_path = '../kvasir-seg/Kvasir-SEG/images/cju0qkwl35piu0993l0dewei2.jpg'
-    image = Image.open(image_path).convert('RGB')
-
-
-
-if __name__ == "__main__":
-    main()
+        return torch.stack(superpixel_maps)  # [B, H, W]

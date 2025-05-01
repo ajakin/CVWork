@@ -4,7 +4,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
-from segnet import SegNet
+from segnet2 import SegNet
 
 
 class KvasirSegDataset(Dataset):
@@ -80,7 +80,9 @@ def show_sample_from_kvasir():
     plt.show()
 
 def check_net():
-    net = SegNet(3,2)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = SegNet(3, 2).to(device)  # 模型转到GPU
+
     dataset = KvasirSegDataset(
         image_dir="../kvasir-seg/Kvasir-SEG/images/",
         mask_dir="../kvasir-seg/Kvasir-SEG/masks/",
@@ -88,9 +90,9 @@ def check_net():
     )
 
     image, mask = dataset[0]
-    image = image.unsqueeze(0)
+    image = image.unsqueeze(0).to(device)  # 数据转到GPU
 
-    print(net(image))
+    print(net(image).shape)
 
 
 if __name__ == '__main__':
