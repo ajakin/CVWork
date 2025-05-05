@@ -5,7 +5,7 @@ from collections import OrderedDict
 import torch.optim as optim
 from torchvision import transforms
 from PIL import Image
-from SuperPixPool2 import superpixel_pooling,superpixel_unpooling
+from SuperPixPool2 import superpixel_pooling,superpixel_unpooling,low_superpixel_pooling,low_superpixel_unpooling
 from skimage.segmentation import slic
 from skimage.util import img_as_float
 import numpy as np
@@ -13,9 +13,9 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class SegNet(nn.Module):
+class SegNet_spp(nn.Module):
     def __init__(self,input_nbr,label_nbr):
-        super(SegNet, self).__init__()
+        super(SegNet_spp, self).__init__()
 
         batchNorm_momentum = 0.1
 
@@ -81,7 +81,6 @@ class SegNet(nn.Module):
         self.conv11d = nn.Conv2d(64, label_nbr, kernel_size=3, padding=1)
 
     def forward(self, x):
-        print("forward",x.shape,device)
 
         # get superpixel_map
         superpixel_map = self.compute_superpixel_map(x)
@@ -89,56 +88,56 @@ class SegNet(nn.Module):
         # Stage 1
         x11 = F.relu(self.bn11(self.conv11(x)))
         x12 = F.relu(self.bn12(self.conv12(x11)))
-        x1p = superpixel_pooling(x12,superpixel_map)
+        x1p = low_superpixel_pooling(x12,superpixel_map)
 
         # Stage 2
         x21 = F.relu(self.bn21(self.conv21(x1p)))
         x22 = F.relu(self.bn22(self.conv22(x21)))
-        x2p = superpixel_pooling(x22,superpixel_map)
+        x2p = low_superpixel_pooling(x22,superpixel_map)
 
         # Stage 3
         x31 = F.relu(self.bn31(self.conv31(x2p)))
         x32 = F.relu(self.bn32(self.conv32(x31)))
         x33 = F.relu(self.bn33(self.conv33(x32)))
-        x3p = superpixel_pooling(x33,superpixel_map)
+        x3p = low_superpixel_pooling(x33,superpixel_map)
 
         # Stage 4
         x41 = F.relu(self.bn41(self.conv41(x3p)))
         x42 = F.relu(self.bn42(self.conv42(x41)))
         x43 = F.relu(self.bn43(self.conv43(x42)))
-        x4p = superpixel_pooling(x43,superpixel_map)
+        x4p = low_superpixel_pooling(x43,superpixel_map)
 
         # Stage 5
         x51 = F.relu(self.bn51(self.conv51(x4p)))
         x52 = F.relu(self.bn52(self.conv52(x51)))
         x53 = F.relu(self.bn53(self.conv53(x52)))
-        x5p = superpixel_pooling(x53,superpixel_map)
+        x5p = low_superpixel_pooling(x53,superpixel_map)
 
         # Stage 5d
-        x5d = superpixel_unpooling(x5p, superpixel_map, x53.shape[2], x53.shape[3])
+        x5d = low_superpixel_unpooling(x5p, superpixel_map, x53.shape[2], x53.shape[3])
         x53d = F.relu(self.bn53d(self.conv53d(x5d)))
         x52d = F.relu(self.bn52d(self.conv52d(x53d)))
         x51d = F.relu(self.bn51d(self.conv51d(x52d)))
 
         # Stage 4d
-        x4d = superpixel_unpooling(x4p, superpixel_map, x43.shape[2], x43.shape[3])
+        x4d = low_superpixel_unpooling(x4p, superpixel_map, x43.shape[2], x43.shape[3])
         x43d = F.relu(self.bn43d(self.conv43d(x4d)))
         x42d = F.relu(self.bn42d(self.conv42d(x43d)))
         x41d = F.relu(self.bn41d(self.conv41d(x42d)))
 
         # Stage 3d
-        x3d = superpixel_unpooling(x3p, superpixel_map, x33.shape[2], x33.shape[3])
+        x3d = low_superpixel_unpooling(x3p, superpixel_map, x33.shape[2], x33.shape[3])
         x33d = F.relu(self.bn33d(self.conv33d(x3d)))
         x32d = F.relu(self.bn32d(self.conv32d(x33d)))
         x31d = F.relu(self.bn31d(self.conv31d(x32d)))
 
         # Stage 2d
-        x2d = superpixel_unpooling(x2p, superpixel_map, x22.shape[2], x22.shape[3])
+        x2d = low_superpixel_unpooling(x2p, superpixel_map, x22.shape[2], x22.shape[3])
         x22d = F.relu(self.bn22d(self.conv22d(x2d)))
         x21d = F.relu(self.bn21d(self.conv21d(x22d)))
 
         # Stage 1d
-        x1d = superpixel_unpooling(x1p, superpixel_map, x12.shape[2], x12.shape[3])
+        x1d = low_superpixel_unpooling(x1p, superpixel_map, x12.shape[2], x12.shape[3])
         x12d = F.relu(self.bn12d(self.conv12d(x1d)))
         x11d = self.conv11d(x12d)
 
@@ -164,3 +163,20 @@ class SegNet(nn.Module):
             superpixel_maps.append(torch.from_numpy(segments).long())  # [H, W]
 
         return torch.stack(superpixel_maps)  # [B, H, W]
+
+
+
+def count_parameters(model):
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total:,}")
+    print(f"Trainable parameters: {trainable:,}")
+
+
+
+if __name__ == '__main__':
+    net = SegNet(3,2)
+    print("use superpixpool")
+    count_parameters(net)
+
+

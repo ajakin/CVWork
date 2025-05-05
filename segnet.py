@@ -188,6 +188,14 @@ def test():
     image = Image.open(image_path).convert('RGB')
 
 
+def count_parameters(model):
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total:,}")
+    print(f"Trainable parameters: {trainable:,}")
+
 
 if __name__ == "__main__":
-    main()
+    net = SegNet(3,2)
+    print("use base")
+    count_parameters(net)
