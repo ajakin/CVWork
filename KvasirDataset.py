@@ -83,7 +83,7 @@ def show_sample_from_kvasir():
 def check_net():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
-    net = SegNet(3, 2).to(device)  # 模型转到GPU
+    net = SegNet_spp(3, 2).to(device)  # 模型转到GPU
     dataset = KvasirSegDataset(
         image_dir="../kvasir-seg/Kvasir-SEG/images/",
         mask_dir="../kvasir-seg/Kvasir-SEG/masks/",
