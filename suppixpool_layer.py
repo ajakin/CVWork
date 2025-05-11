@@ -44,8 +44,20 @@ class SupPixUnpool(torch.nn.Module):
         super(SupPixUnpool, self).__init__()
 
     def forward(self, pooled, spx):
-        outShape = pooled.size()[0:2]+spx.size()[-2:]
-        out = pooled.new_zeros(outShape)
-        for batch in range(pooled.size()[0]):
-            out[batch, :, :, :] = pooled[batch, :, spx[batch,:,:]]
-        return out
+        # 确保输入是3D [B,C,K]
+        if pooled.dim() == 4:  # 如果是4D [B,C,1,K]
+            pooled = pooled.squeeze(2)  # 移除多余的维度
+        elif pooled.dim() != 3:
+            raise ValueError(f"输入必须是3D或4D张量，但得到的是{pooled.dim()}D")
+
+        B, C, K = pooled.shape
+        _, H, W = spx.shape
+
+        # 验证标签值范围
+        max_label = spx.max().item()
+        if max_label >= K:
+            raise ValueError(f"超像素标签最大值{max_label} >= 池化特征数{K}")
+
+        # 反池化操作
+        output = pooled.gather(2, spx.view(B, 1, H * W).expand(-1, C, -1))
+        return output.view(B, C, H, W)
