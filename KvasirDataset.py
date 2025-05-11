@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 from segnet2 import SegNet_spp
 from segnet import SegNet
-
+from segnet3 import SegNet3
 
 class KvasirSegDataset(Dataset):
     def __init__(self, image_dir, mask_dir, target_size=(256, 256)):

@@ -89,7 +89,6 @@ def low_superpixel_pooling(features, superpixel_map):
 
 
 
-
 def low_superpixel_unpooling(pooled_features, superpixel_map, H, W):
     """
     pooled_features: Tensor [B, C, h, w]（superpixel_pooling 输出）
@@ -127,4 +126,55 @@ def low_superpixel_unpooling(pooled_features, superpixel_map, H, W):
     return out
 
 
+# def low_superpixel_pooling(features, superpixel_map):
+#     """
+#     features: Tensor of shape [B, C, H, W]
+#     superpixel_map: Tensor of shape [B, H, W]
+#     """
+#     device = features.device
+#     B, C, H, W = features.shape
+#     out = torch.zeros_like(features, device=device)
+#
+#     for i in range(B):
+#         fmap = features[i].view(C, -1)  # [C, H*W]
+#         spmap = superpixel_map[i].view(-1)  # [H*W]
+#         sp_ids = torch.unique(spmap)
+#         sp_id_to_index = {int(sp.item()): idx for idx, sp in enumerate(sp_ids)}
+#
+#         pooled_feat = torch.zeros(C, len(sp_ids), device=device)
+#
+#         for sp_id in sp_ids:
+#             idx = sp_id_to_index[int(sp_id.item())]
+#             mask = (spmap == sp_id).float().unsqueeze(0).to(fmap.device)  # [1, H*W]
+#             area = mask.sum() + 1e-6
+#             pooled_feat[:, idx] = (fmap * mask).sum(dim=1) / area
+#
+#         index_map = torch.tensor([sp_id_to_index[int(i.item())] for i in spmap],
+#                                  device=device, dtype=torch.long)  # [H*W]
+#         out[i] = pooled_feat[:, index_map].view(C, H, W)
+#
+#     return out
+#
+#
+# def low_superpixel_unpooling(pooled_features, superpixel_map, H, W):
+#     """
+#     pooled_features: Tensor [B, C, N]（N 是超像素数）
+#     superpixel_map: Tensor [B, H, W]，每个像素对应的超像素 ID
+#     H, W: 输出尺寸
+#     """
+#     B, C = pooled_features.shape[:2]
+#     device = pooled_features.device
+#     out = torch.zeros(B, C, H, W, device=device)
+#
+#     for b in range(B):
+#         spmap = superpixel_map[b].view(-1).long()  # [H*W]
+#         sp_ids = torch.unique(spmap)
+#         sp_id_to_index = {int(sp.item()): idx for idx, sp in enumerate(sp_ids)}
+#         feat = pooled_features[b]  # [C, N]
+#
+#         index_map = torch.tensor([sp_id_to_index[int(i.item())] for i in spmap],
+#                                  device=device, dtype=torch.long)  # [H*W]
+#         out[b] = feat[:, index_map].view(C, H, W)
+#
+#     return out
 
