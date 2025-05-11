@@ -17,3 +17,8 @@ SuperPixPool.py:超像素池函数，传入特征图和超像素图进行超像�
 **4.30--SLIC示例图**
 
 ![SLIC示例](./img.png)
+
+**5.11--成功在服务器上引入github的suppixpool代码，经过一系列修改跑通一张图**
+
+
+
